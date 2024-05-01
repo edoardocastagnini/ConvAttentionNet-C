@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdint.h>
 #include "network.h"
+#include "input_image.h"
 
 
 #define INPUT_H 32
@@ -27,7 +28,7 @@ int main(void)
     for(int i=0; i<INPUT_CHANNELS; i++){
         for(int j=0; j<INPUT_H; j++){
             for(int k=0; k<INPUT_W; k++){
-                input[i][j][k] = 1.0;
+                input[i][j][k] = my_input[i*INPUT_H*INPUT_W + j*INPUT_W + k];
             }
         }
     }
