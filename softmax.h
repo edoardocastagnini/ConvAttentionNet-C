@@ -20,6 +20,8 @@ float* softmax(float* input, int dim){
         output[i] = input[i]/sum_exp;
     }
 
+    free(input);
+
 
     return output;
    

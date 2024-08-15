@@ -21,8 +21,8 @@ int min (int a, int b) {
 }
 
 void freeConv2d(Conv2d layer) {
-    for(int i=0;i<layer.out_channels;i++){
-        for(int j=0;j<layer.in_channels;j++){
+    for(int i=0;i<layer.in_channels;i++){
+        for(int j=0;j<layer.out_channels;j++){
             for(int k=0;k<layer.n;k++){
                 free(layer.filters[i][j][k]);
             }
@@ -53,7 +53,7 @@ void free3dMatrix(float*** matrix3d, int h, int w){
 
 
 //function to create the convolutional layer and initialize the filters with the weights
-Conv2d createConv2d(int n,int in_channels,int out_channels,float weights[]) {
+Conv2d createConv2d(int n,int in_channels,int out_channels,float* weights) {
     Conv2d layer;
     layer.n = n;
     layer.out_channels = out_channels;
@@ -81,6 +81,8 @@ Conv2d createConv2d(int n,int in_channels,int out_channels,float weights[]) {
             }
         }
     }
+    free(weights);
+
     return layer;
 }
 
@@ -167,7 +169,10 @@ float** conv_forward(Conv2d layer, float*** input, int input_h, int input_w, int
                 }
             }
         }
+        free2dMatrix(regionsMatrix, layer.n*layer.n);
+        free2dMatrix(filterMatrix, layer.out_channels);
     }
+    freeConv2d(layer);
     return conv_output;
 }
 

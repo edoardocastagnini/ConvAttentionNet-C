@@ -9,7 +9,7 @@ typedef struct Linear {
 } Linear;
 
 //function to create a linear layer and initialize it with weights
-Linear* createLinear(int in, int out, float weights[]) {
+Linear* createLinear(int in, int out, float* weights) {
     Linear *linear = (Linear*)malloc(sizeof(Linear));
     linear->in_features = in;
     linear->out_features = out;
@@ -21,6 +21,7 @@ Linear* createLinear(int in, int out, float weights[]) {
             linear->weights[i][j] = weights[j*in + i];
         }
     }  
+    free(weights);
     linear->biases = (float*)malloc(out * sizeof(float));
     for (int i = 0; i < out; i++) {
         linear->biases[i] = 0;
@@ -38,7 +39,7 @@ void freeLinear(Linear *linear) {
 }
 
 //function to perform the forward pass
-float* linearForward(int in, int out, float*** input, int input_h, int input_w, int num_filters, float weights[]){
+float* linearForward(int in, int out, float*** input, int input_h, int input_w, int num_filters, float* weights){
     Linear *linear = createLinear(in, out, weights);
     float* totals = (float*)malloc(linear->out_features * sizeof(float));
 
@@ -56,6 +57,28 @@ float* linearForward(int in, int out, float*** input, int input_h, int input_w, 
     }
     freeLinear(linear);
     free(flat_input);
+    free3dMatrix(input, num_filters, input_h);
+
+    return totals;
+}
+
+
+
+
+//function to perform the forward pass
+float* linearForwardflat(int in, int out, float* input, float* weights){
+    Linear *linear = createLinear(in, out, weights);
+    float* totals = (float*)malloc(linear->out_features * sizeof(float));
+    
+    for (int j = 0; j < linear->out_features; j++) {
+        totals[j] = 0.0;
+        for (int i = 0; i < linear->in_features; i++) {
+            totals[j] += input[i] * linear->weights[i][j];
+        }
+        totals[j] += linear->biases[j];
+    }
+    freeLinear(linear);
+    free(input);
 
     return totals;
 }

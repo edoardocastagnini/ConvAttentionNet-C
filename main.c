@@ -24,7 +24,12 @@ int main(void)
         }
     }
 
-    //initialize input
+
+
+
+
+    float* my_input = init_input(INPUT_H*INPUT_W*INPUT_CHANNELS);
+    //reshape input
     for(int i=0; i<INPUT_CHANNELS; i++){
         for(int j=0; j<INPUT_H; j++){
             for(int k=0; k<INPUT_W; k++){
@@ -32,6 +37,7 @@ int main(void)
             }
         }
     }
+    free(my_input);
 
  
 
@@ -39,6 +45,7 @@ int main(void)
     for (int i = 0; i < 10; i++){
         printf("%f ", output[i]);
     }
+
     
     free(output);
 

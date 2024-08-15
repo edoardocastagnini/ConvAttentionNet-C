@@ -35,7 +35,24 @@ float*** maxPoolforward(float*** input, int input_h, int input_w, int num_filter
             }
         }
     }
+    free3dMatrix(input,num_filters,input_h);
     return output;
 } 
 
+
+float* avgpool(float*** input, int c, int h, int w){
+    float* output = (float*)malloc(c * sizeof(float));
+    int size = h*w;
+    for(int i=0;i<c;i++){
+        float sum = 0;
+        for(int j=0;j<h;j++){
+            for(int k=0;k<w;k++){
+                sum += input[i][j][k];
+            }
+        }
+        output[i] = sum/size;
+    }
+    free3dMatrix(input,c,h);
+    return output;
+}
 

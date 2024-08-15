@@ -5,8 +5,8 @@
 #include "reLU.h"
 
 #define HEADS 4 //number of heads
-#define DV 8    //dimension of Value matrix
-#define DQK 4   //dimension of Query and Key matrices
+#define DV 32    //dimension of Value matrix
+#define DQK 16   //dimension of Query and Key matrices
 
 
 float*** QKV_attention(float*** input,int c, int h, int w){
@@ -33,7 +33,7 @@ float*** QKV_attention(float*** input,int c, int h, int w){
     for(int i=0;i<HEADS;i++){
         for(int k=0;k<DQK;k++){
             for(int j=0;j<h*w;j++){
-                Q[i][j][k] = input[k + i * HEADS * DQK][j / w][j % w];
+                Q[i][j][k] = input[k + i * (DQK*2+DV)][j / w][j % w];
             }
         }
     }
@@ -50,7 +50,7 @@ float*** QKV_attention(float*** input,int c, int h, int w){
     for(int i=0;i<HEADS;i++){
         for(int j=0;j<DQK;j++){
             for(int k=0;k<h*w;k++){
-                K[i][j][k] = input[j + DQK + i * HEADS * DQK][k / w][k % w];
+                K[i][j][k] = input[j + DQK + i * (DQK*2+DV)][k / w][k % w];
             }
         }
     }
@@ -67,7 +67,7 @@ float*** QKV_attention(float*** input,int c, int h, int w){
     for(int i=0;i<HEADS;i++){
         for(int j=0;j<DV;j++){
             for(int k=0;k<h*w;k++){
-                V[i][k][j] = input[j + DQK * 2 + i * HEADS * DQK][k / w][k % w];
+                V[i][k][j] = input[j + DQK * 2 + i * (DQK*2+DV)][k / w][k % w];
             }
         }
         //add a channel of 1 to V for each row
@@ -121,7 +121,6 @@ float*** QKV_attention(float*** input,int c, int h, int w){
     free3dMatrix(K,HEADS,DQK);
 
 
-    //multiply Q and VK matrices, obtaining a matrix of dimensions HEADSx(h*w)x(DV+1)
 
     float*** QKV = (float***)malloc(HEADS*sizeof(float**));
     for(int i=0;i<HEADS;i++){
@@ -130,7 +129,8 @@ float*** QKV_attention(float*** input,int c, int h, int w){
             QKV[i][j] = (float*)malloc((DV+1)*sizeof(float));
         }
     }
-
+    
+    //multiply Q and VK matrices, obtaining a matrix of dimensions HEADSx(h*w)x(DV+1)
     for(int i=0;i<HEADS;i++){
         float** tempQ = Q[i];
         float** tempVK = VK[i];
@@ -149,9 +149,7 @@ float*** QKV_attention(float*** input,int c, int h, int w){
                 }
             }
         }
-
         QKV[i] = tempQKV;
-
     }
 
     free3dMatrix(VK,HEADS,DQK);

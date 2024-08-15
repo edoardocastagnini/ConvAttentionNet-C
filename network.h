@@ -8,6 +8,7 @@
 #include "attention.h"
 #include "weights/conv1.h"
 #include "weights/conv2.h"
+#include "weights/conv3.h"
 #include "weights/mla_qkv.h"
 #include "weights/mla_proj.h"
 #include "weights/fc.h"
@@ -18,14 +19,14 @@
 //this network is composed by 2 convolutional layers, 2 maxpooling layers, 1 attention block and 1 linear layer
 
 
-#define NUM_FILTERS 8       //number of filters in the first convolutional layer
-#define CIN_ATTENTION 64    //number of input channels in the attention block
+#define NUM_FILTERS 8      //number of filters in the first convolutional layer
+#define CIN_ATTENTION 256    //number of input channels in the attention block
 #define N 3                 //size of the convolutional kernel
 #define OUT_FEATURES 10     //number of output features in the linear layer
 
 
 //function for the convolutional layer 
-float*** conv2d(float*** input, int h, int w, int input_channels, int output_channels, int padding, int n, float weights[]){
+float*** conv2d(float*** input, int h, int w, int input_channels, int output_channels, int padding, int n, float* weights){
     Conv2d layer = createConv2d(n,input_channels,output_channels,weights);
     int h_padding = h + 2 * padding;
     int w_padding = w + 2 * padding;
@@ -61,7 +62,7 @@ float*** conv2d(float*** input, int h, int w, int input_channels, int output_cha
 }
 
 //function for the pointwise convolution
-float*** pointwiseConv(float*** input, int h, int w, int input_channels, int output_channels, float weights[]){
+float*** pointwiseConv(float*** input, int h, int w, int input_channels, int output_channels, float* weights){
     
     //initialize weights
     float** pointwise_kernel = malloc(output_channels*sizeof(float*));
@@ -73,6 +74,7 @@ float*** pointwiseConv(float*** input, int h, int w, int input_channels, int out
             pointwise_kernel[i][j] = weights[i*input_channels+j];
         } 
     }
+    free(weights);
   
     
     float*** output = pointwise_forward(input,h,w,input_channels,output_channels,pointwise_kernel);
@@ -84,44 +86,64 @@ float*** pointwiseConv(float*** input, int h, int w, int input_channels, int out
 //function to run the complete network
 float* network(float*** input, int h, int w,int input_channels, int padding){
 
-	//CONVOLUTION FROM 3x32x32 TO 8x32x32
-    float*** conv1 = conv2d(input,h,w,input_channels,NUM_FILTERS,padding,N,w_conv1);
-    
-    //reLU
+    //32x32x3
+    float*** conv1 = conv2d(input,h,w,input_channels,NUM_FILTERS,padding,N,weights_conv1(N*N*input_channels*NUM_FILTERS));
     conv1 = reLU(conv1,h,w,NUM_FILTERS);
-
-    //MAXPOOLING FROM 8x32x32 TO 8x16x16
     float*** maxpool1 = maxPoolforward(conv1,h,w,NUM_FILTERS);
-    free3dMatrix(conv1,NUM_FILTERS,h);
+    //16x16x32
 
-    //CONVOLUTION FROM 8x16x16 TO 16x16x16
-    float*** conv2 = conv2d(maxpool1,h/2,w/2,NUM_FILTERS,NUM_FILTERS*2,padding,N,w_conv2);
 
-    //reLU
+    //16x16x32
+    float*** conv2 = conv2d(maxpool1,h/2,w/2,NUM_FILTERS,NUM_FILTERS*2,padding,N,weights_conv2(N*N*NUM_FILTERS*NUM_FILTERS*2));
     conv2 = reLU(conv2,h/2,w/2,NUM_FILTERS*2);
-
-    //MAXPOOLING FROM 16x16x16 TO 16x8x8
     float*** maxpool2 = maxPoolforward(conv2,h/2,w/2,NUM_FILTERS*2);
-    free3dMatrix(conv2,NUM_FILTERS*2,h/2);
-    
+    //8x8x64
+
+    //8x8x64
+    float*** conv3 = conv2d(maxpool2,h/4,w/4,NUM_FILTERS*2,NUM_FILTERS*4,padding,N,weights_conv3(N*N*NUM_FILTERS*2*NUM_FILTERS*4));
+    conv3 = reLU(conv3,h/4,w/4,NUM_FILTERS*4);
+    float*** maxpool3 = maxPoolforward(conv3,h/4,w/4,NUM_FILTERS*4);
+    //4x4x128
+    //4x4x128
 
     //ATTENTION BLOCK ----------------------------------------------------------------
-    //POINTWISE CONVOLUTION FROM 16x8x8 TO 64x8x8
-    float*** pointwise_1 = pointwiseConv(maxpool2,h/4,w/4,NUM_FILTERS*2,CIN_ATTENTION, w_mla_qkv);
+    float*** pointwise_1 = pointwiseConv(maxpool3,h/8,w/8,NUM_FILTERS*4,CIN_ATTENTION, weights_mla_qkv(NUM_FILTERS*4*CIN_ATTENTION));
 
-    //ATTENTION MECHANISM FROM 64x8x8 TO 32x8x8
-    float*** attention = QKV_attention(pointwise_1,NUM_FILTERS*4,h/4,w/4);
+    //4x4x256
+    float*** attention = QKV_attention(pointwise_1, CIN_ATTENTION,h/8,w/8);
+    //4x4x128
 
-    //POINTWISE CONVOLUTION FROM 32x8x8 TO 16x8x8
-    float*** pointwise_2 = pointwiseConv(attention,h/4,w/4,CIN_ATTENTION/2,NUM_FILTERS*2,w_mla_proj);
-    
+
+    float*** pointwise_2 = pointwiseConv(attention,h/8,w/8,CIN_ATTENTION/2,NUM_FILTERS*4,weights_mla_proj(CIN_ATTENTION/2*NUM_FILTERS*4));
+    //4x4x128
     //---------------------------------------------------------------------------------
 
-    //LINEAR LAYER FROM 16x8x8 TO 10
-    float* output = linearForward(NUM_FILTERS*2*h/4*w/4,OUT_FEATURES,pointwise_2,h/4,w/4,NUM_FILTERS*2,w_fc);
+
+    float* avgpool_output = avgpool(pointwise_2,NUM_FILTERS*4,h/8,w/8);
+
+   // float* output = linearForward(NUM_FILTERS*4*h/8*w/8,OUT_FEATURES,pointwise_2,h/8,w/8,NUM_FILTERS*4,w_fc);
+    float* output = linearForwardflat(NUM_FILTERS*4,OUT_FEATURES,avgpool_output,weights_fc(NUM_FILTERS*4*OUT_FEATURES));
+
+
     float* output_softmax = softmax(output,OUT_FEATURES);
     
-    free3dMatrix(pointwise_2,NUM_FILTERS*2,h/4);
 
     return output_softmax;
 }
+
+/*
+32x32x3 --conv1--> 32x32x32 
+--maxpool1--> 16x16x32 
+--conv2--> 16x16x64 
+--maxpool2--> 8x8x64 
+--conv3--> 8x8x128 
+--maxpool3--> 4x4x128 
+--pointwise--> 4x4x256
+--attention--> 4x4x128
+--pointwise--> 4x4x128
+--linear--> 100
+--softmax--> 100
+
+
+
+*/
